@@ -1,7 +1,5 @@
 import { customAlphabet } from 'nanoid';
 import AndroidVersioning from './android-versioning';
-import OrchestratorConstants from './orchestrator/options/orchestrator-constants';
-import OrchestratorBuildGuid from './orchestrator/options/orchestrator-guid';
 import Input from './input';
 import Platform from './platform';
 import UnityVersioning from './unity-versioning';
@@ -10,8 +8,6 @@ import { GitRepoReader } from './input-readers/git-repo';
 import { GithubCliReader } from './input-readers/github-cli';
 import { Cli } from './cli/cli';
 import GitHub from './github';
-import OrchestratorOptions from './orchestrator/options/orchestrator-options';
-import Orchestrator from './orchestrator/orchestrator';
 import * as core from '@actions/core';
 
 class BuildParameters {
@@ -55,61 +51,21 @@ class BuildParameters {
   public sshPublicKeysDirectoryPath!: string;
   public providerStrategy!: string;
   public gitPrivateToken!: string;
-  public awsStackName!: string;
-  public awsEndpoint?: string;
-  public awsCloudFormationEndpoint?: string;
-  public awsEcsEndpoint?: string;
-  public awsKinesisEndpoint?: string;
-  public awsCloudWatchLogsEndpoint?: string;
-  public awsS3Endpoint?: string;
-  public storageProvider!: string;
-  public rcloneRemote!: string;
-  public kubeConfig!: string;
-  public containerMemory!: string;
-  public containerCpu!: string;
-  public containerNamespace!: string;
-  public kubeVolumeSize!: string;
-  public kubeVolume!: string;
-  public kubeStorageClass!: string;
   public runAsHostUser!: string;
   public chownFilesTo!: string;
-  public commandHooks!: string;
-  public pullInputList!: string[];
-  public inputPullCommand!: string;
-  public cacheKey!: string;
 
-  public postBuildContainerHooks!: string;
-  public preBuildContainerHooks!: string;
-  public customJob!: string;
   public runNumber!: string;
   public branch!: string;
   public githubRepo!: string;
-  public orchestratorRepoName!: string;
-  public cloneDepth!: number;
   public gitSha!: string;
   public logId!: string;
   public buildGuid!: string;
-  public orchestratorBranch!: string;
-  public orchestratorDebug!: boolean | undefined;
   public buildPlatform!: string | undefined;
   public isCliMode!: boolean;
-  public maxRetainedWorkspaces!: number;
-  public useLargePackages!: boolean;
-  public useCompressionStrategy!: boolean;
-  public garbageMaxAge!: number;
-  public githubChecks!: boolean;
-  public asyncWorkflow!: boolean;
-  public githubCheckId!: string;
-  public finalHooks!: string[];
-  public skipLfs!: boolean;
-  public skipCache!: boolean;
+
   public cacheUnityInstallationOnMac!: boolean;
   public unityHubVersionOnMac!: string;
   public dockerWorkspacePath!: string;
-
-  public static shouldUseRetainedWorkspaceMode(buildParameters: BuildParameters) {
-    return buildParameters.maxRetainedWorkspaces > 0 && Orchestrator.lockedWorkspace !== ``;
-  }
 
   static async create(): Promise<BuildParameters> {
     const buildFile = this.parseBuildFile(Input.buildName, Input.targetPlatform, Input.androidExportType);
@@ -155,6 +111,8 @@ class BuildParameters {
       core.setSecret(`${unitySerial.slice(0, -4)}XXXX`);
     }
 
+    const providerStrategy = Input.getInput('providerStrategy') || (Cli.isCliMode ? 'aws' : 'local');
+
     return {
       editorVersion,
       customImage: Input.customImage,
@@ -193,52 +151,18 @@ class BuildParameters {
       dockerIsolationMode: Input.dockerIsolationMode,
       containerRegistryRepository: Input.containerRegistryRepository,
       containerRegistryImageVersion: Input.containerRegistryImageVersion,
-      providerStrategy: OrchestratorOptions.providerStrategy,
-      buildPlatform: OrchestratorOptions.buildPlatform,
-      kubeConfig: OrchestratorOptions.kubeConfig,
-      containerMemory: OrchestratorOptions.containerMemory,
-      containerCpu: OrchestratorOptions.containerCpu,
-      containerNamespace: OrchestratorOptions.containerNamespace,
-      kubeVolumeSize: OrchestratorOptions.kubeVolumeSize,
-      kubeVolume: OrchestratorOptions.kubeVolume,
-      postBuildContainerHooks: OrchestratorOptions.postBuildContainerHooks,
-      preBuildContainerHooks: OrchestratorOptions.preBuildContainerHooks,
-      customJob: OrchestratorOptions.customJob,
+      providerStrategy,
+      buildPlatform: providerStrategy !== 'local' ? 'linux' : process.platform,
       runNumber: Input.runNumber,
       branch: Input.branch.replace('/head', '') || (await GitRepoReader.GetBranch()),
-      orchestratorBranch: OrchestratorOptions.orchestratorBranch.split('/').reverse()[0],
-      orchestratorDebug: OrchestratorOptions.orchestratorDebug,
-      githubRepo: (Input.githubRepo ?? (await GitRepoReader.GetRemote())) || OrchestratorOptions.orchestratorRepoName,
-      orchestratorRepoName: OrchestratorOptions.orchestratorRepoName,
-      cloneDepth: Number.parseInt(OrchestratorOptions.cloneDepth),
-      isCliMode: Cli.isCliMode,
-      awsStackName: OrchestratorOptions.awsStackName,
-      awsEndpoint: OrchestratorOptions.awsEndpoint,
-      awsCloudFormationEndpoint: OrchestratorOptions.awsCloudFormationEndpoint,
-      awsEcsEndpoint: OrchestratorOptions.awsEcsEndpoint,
-      awsKinesisEndpoint: OrchestratorOptions.awsKinesisEndpoint,
-      awsCloudWatchLogsEndpoint: OrchestratorOptions.awsCloudWatchLogsEndpoint,
-      awsS3Endpoint: OrchestratorOptions.awsS3Endpoint,
-      storageProvider: OrchestratorOptions.storageProvider,
-      rcloneRemote: OrchestratorOptions.rcloneRemote,
+      githubRepo: (Input.githubRepo ?? (await GitRepoReader.GetRemote())) || 'game-ci/unity-builder',
       gitSha: Input.gitSha,
-      logId: customAlphabet(OrchestratorConstants.alphabet, 9)(),
-      buildGuid: OrchestratorBuildGuid.generateGuid(Input.runNumber, Input.targetPlatform),
-      commandHooks: OrchestratorOptions.commandHooks,
-      inputPullCommand: OrchestratorOptions.inputPullCommand,
-      pullInputList: OrchestratorOptions.pullInputList,
-      kubeStorageClass: OrchestratorOptions.kubeStorageClass,
-      cacheKey: OrchestratorOptions.cacheKey,
-      maxRetainedWorkspaces: Number.parseInt(OrchestratorOptions.maxRetainedWorkspaces),
-      useLargePackages: OrchestratorOptions.useLargePackages,
-      useCompressionStrategy: OrchestratorOptions.useCompressionStrategy,
-      garbageMaxAge: OrchestratorOptions.garbageMaxAge,
-      githubChecks: OrchestratorOptions.githubChecks,
-      asyncWorkflow: OrchestratorOptions.asyncOrchestrator,
-      githubCheckId: OrchestratorOptions.githubCheckId,
-      finalHooks: OrchestratorOptions.finalHooks,
-      skipLfs: OrchestratorOptions.skipLfs,
-      skipCache: OrchestratorOptions.skipCache,
+      logId: customAlphabet('0123456789abcdefghijklmnopqrstuvwxyz', 9)(),
+      buildGuid: `${Input.runNumber}-${Input.targetPlatform.toLowerCase().replace('standalone', '')}-${customAlphabet(
+        '0123456789abcdefghijklmnopqrstuvwxyz',
+        4,
+      )()}`,
+      isCliMode: Cli.isCliMode,
       cacheUnityInstallationOnMac: Input.cacheUnityInstallationOnMac,
       unityHubVersionOnMac: Input.unityHubVersionOnMac,
       dockerWorkspacePath: Input.dockerWorkspacePath,

@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { Cli } from './cli/cli';
-import OrchestratorQueryOverride from './orchestrator/options/orchestrator-query-override';
 import Platform from './platform';
 import GitHub from './github';
 import os from 'node:os';
@@ -15,7 +14,8 @@ export type InputKey = keyof typeof Input;
  *
  * Note that input is always passed as a string, even booleans.
  *
- * Todo: rename to UserInput and remove anything that is not direct input from the user / ci workflow
+ * Only core build inputs belong here. Orchestrator/plugin inputs are read
+ * directly by the @game-ci/orchestrator plugin via core.getInput() / env vars.
  */
 class Input {
   public static getInput(query: string): string | undefined {
@@ -32,10 +32,6 @@ class Input {
       return Cli.query(query, alternativeQuery);
     }
 
-    if (OrchestratorQueryOverride.query(query, alternativeQuery)) {
-      return OrchestratorQueryOverride.query(query, alternativeQuery);
-    }
-
     if (process.env[query] !== undefined) {
       return process.env[query]!;
     }
@@ -43,10 +39,6 @@ class Input {
     if (alternativeQuery !== query && process.env[alternativeQuery] !== undefined) {
       return process.env[alternativeQuery]!;
     }
-  }
-
-  static get region(): string {
-    return Input.getInput('region') ?? 'eu-west-2';
   }
 
   static get githubRepo(): string | undefined {
